@@ -8,7 +8,7 @@ import java.net.Socket;
 
 public class E2ETests {
 
-    private void setupTest(int numNodes) {
+    private void setupTest(int numNodes) throws InterruptedException {
         Thread thread = new Thread() {
             public void run() {
                 Server s = new Server(1000);
@@ -17,14 +17,14 @@ public class E2ETests {
         };
 
         thread.start();
-    }
-
-    @Test
-    public void one_node_getItem_successful() throws IOException, InterruptedException {
-        setupTest(1);
 
         //Hard-coded timeout for server to come online
         Thread.sleep(1000);
+    }
+
+    @Test
+    public void one_node_putItem_successful() throws IOException, InterruptedException {
+        setupTest(1);
 
         System.out.println("Server started");
 
@@ -38,27 +38,21 @@ public class E2ETests {
         out = new PrintWriter(client.getOutputStream(), true);
 
         out.println("PUT KEY1 VALUE1");
-        out.flush();
+    }
 
-        //Wait a bit before asking for response
-        Thread.sleep(1000);
+    @Test
+    public void one_node_getItem_successful() throws IOException, InterruptedException {
 
-        out.println("GET KEY1");
-        out.flush();
+        Socket client = new Socket("127.0.0.1", 1000);
+        NetworkManager.sendMessage(client, "GET KEY1");
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
         String resp = in.readLine();
 
         if (resp != null) {
             System.out.println("Response received:" + resp);
         }
 
-        in.close();
-        out.close();
-        client.close();
-    }
-
-    @Test
-    public void one_node_putItem_successful() {
-        setupTest(1);
     }
 
 }
