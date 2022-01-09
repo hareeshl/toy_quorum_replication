@@ -5,11 +5,15 @@ import java.io.PrintWriter;
 import java.net.ConnectException;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class NodeRegistration implements Runnable {
     private int port;
 
-    public static final int[] PORTS = {1500, 1501};
+    //Making this mutable for the sake of testing. Ideally this array is immutable and created only through
+    //Node Registration process.
+    public static final List<Integer> PORTS = new ArrayList();
 
     public NodeRegistration(int port) {
         this.port = port;
@@ -22,8 +26,10 @@ public class NodeRegistration implements Runnable {
         for(int port: this.PORTS) {
             if(this.port != port) {
                 Socket client = null;
+
                 try {
                     client = new Socket("127.0.0.1", port);
+
                     PrintWriter out = new PrintWriter(client.getOutputStream(), true);
                     BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
 

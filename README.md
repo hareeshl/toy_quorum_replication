@@ -5,7 +5,7 @@ used in NoSql databases.
 
 NoSql databases  are amazing! NoSql databases typically have a simple interface, 
 - PUT(Key, Value) 
-- GET(Key, Value)
+- GET(Key)
 
 They provide reliability guarantee, these databases need to replicate data of a partition (key range) 
 across different servers responsible for serving data of a partition. It looks something like this: <TODO: Image Url>.
@@ -27,4 +27,7 @@ Implementation Detail
 
 - Server.java : This is the starting point. It starts off 2 Threads, one for receiving incoming requests and 
 other for sending requests to other nodes in the cluster.
+
+Execution Instructions
+- javac *.java && java Server <portnumber>
 

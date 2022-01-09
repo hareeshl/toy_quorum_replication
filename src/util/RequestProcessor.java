@@ -15,8 +15,4 @@ public class RequestProcessor {
 
     }
 
-    public String getRequestPayload() {
-        return "";
-    }
-
 }

@@ -1,45 +1,44 @@
+import util.RequestProcessor;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class CommandProcessor {
-    private int port;
+    private final ServerSocket server;
 
-    Map<String, String> db = new HashMap<String, String>();
+    ConcurrentHashMap<String, String> db = new ConcurrentHashMap<>();
 
-    public CommandProcessor(int port) {
-        this.port = port;
+    private final RequestProcessor requestProcessor;
+
+    public CommandProcessor(final ServerSocket serverSocket,
+                            final RequestProcessor requestProcessor) {
+        this.server = serverSocket;
+        this.requestProcessor = requestProcessor;
     }
 
     public void run() {
-        System.out.println("Setting up command processor for: " + port);
-
-        ExecutorService pool = Executors.newFixedThreadPool(10);
+        System.out.println("Setting up command processor for: " + server);
 
         Runnable task = new Runnable() {
             @Override
             public void run() {
                 //Start server socket
-                ServerSocket s = null;
                 Socket c = null;
                 PrintWriter out = null;
                 BufferedReader in = null;
 
                 try {
-                    s = new ServerSocket(port);
-
                     System.out.println("Waiting for clients");
 
                     while (true) {
                         //Wait till registration complete with other servers
-                        c = s.accept();
+                        c = server.accept();
 
                         out = new PrintWriter(c.getOutputStream(), true);
                         in = new BufferedReader(new InputStreamReader(c.getInputStream()));
@@ -50,9 +49,42 @@ public class CommandProcessor {
 
                         if (inputLine.startsWith("REGISTRATION")) {
                             out.println("Registration request successful");
-                            System.out.println("Registration request received from " + port);
-                        } else if (inputLine.startsWith("GET")) {
+                            System.out.println("Registration request received from " + server);
 
+                        } else if (inputLine.startsWith("GET")) {
+                            String key = inputLine.split(" ")[1];
+                            String value = db.get(key);
+                            AtomicInteger quorumCount = new AtomicInteger(1);
+
+                            for(int port: NodeRegistration.PORTS) {
+
+                                //Message every other node in the cluster
+                                if(port != server.getLocalPort()) {
+                                    System.out.println("Sending fetch to " + port);
+
+                                    Socket client = new Socket("127.0.0.1", port);
+                                    String message = new StringBuilder()
+                                            .append("FETCH")
+                                            .append(" ")
+                                            .append(key)
+                                            .toString();
+
+                                    NetworkManager.sendMessage(client, message);
+
+                                    BufferedReader in1 = new BufferedReader(new InputStreamReader(client.getInputStream()));
+                                    String resp = in1.readLine();
+
+                                    //Response returned from other node
+                                    if(resp != null) {
+                                        if(resp.equals(value)) quorumCount.getAndAdd(1);
+                                    }
+                                }
+                            }
+
+                            System.out.println(quorumCount + " :Nodes agree on value:" + value + " for key: " + key);
+
+                            if(quorumCount.get() >= NodeRegistration.PORTS.size()/2) out.println(value);
+                            else out.println("CONSISTENCY ERROR!!");
 
                         } else if (inputLine.startsWith("PUT")) {
                             String key = inputLine.split(" ")[1];
@@ -60,37 +92,36 @@ public class CommandProcessor {
 
                             db.put(key, value);
 
-                            for (int p : NodeRegistration.PORTS) {
-                                if (port != p) {
-                                    Socket client = new Socket("127.0.0.1", p);
-                                    PrintWriter out1 = new PrintWriter(client.getOutputStream(), true);
-                                    BufferedReader in1 = new BufferedReader(new InputStreamReader(client.getInputStream()));
+                            for(int port: NodeRegistration.PORTS) {
+                                if(port != server.getLocalPort()) {
+                                    System.out.println("Connecting to: " + port);
 
-                                    out1.println("PUBLISH key1 value1");
+                                    Socket client = new Socket("127.0.0.1", port);
+                                    String message = new StringBuilder()
+                                            .append("PUBLISH")
+                                            .append(" ")
+                                            .append(key)
+                                            .append(" ")
+                                            .append(value)
+                                            .toString();
 
-                                    String input = "";
-
-                                    while ((input = in1.readLine()) != null) {
-                                        System.out.println("Response received for publish: " + input);
-                                        break;
-                                    }
-
-                                    System.out.println("Successfully sent reg req to " + port);
+                                    NetworkManager.sendMessage(client, message);
                                 }
                             }
 
                         } else if (inputLine.startsWith("FETCH")) {
+                            String key = inputLine.split(" ")[1];
+                            String value = db.get(key);
+                            out.println(value);
 
                         } else if (inputLine.startsWith("PUBLISH")) {
-                            System.out.println("Responding to publish: " + inputLine);
-
                             String key = inputLine.split(" ")[1];
                             String value = inputLine.split(" ")[2];
 
                             db.put(key, value);
                         }
 
-                        System.out.println("Procesing request complete");
+                        System.out.println("Processing request complete");
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -99,7 +130,7 @@ public class CommandProcessor {
                         c.close();
                         out.close();
                         in.close();
-                        s.close();
+                        server.close();
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
