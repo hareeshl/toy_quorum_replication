@@ -1,3 +1,7 @@
+package startup;
+
+import threads.Bootstrap;
+import util.NetworkingUtils;
 import util.RequestProcessor;
 
 import java.io.BufferedReader;
@@ -9,16 +13,19 @@ import java.net.Socket;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class CommandProcessor {
+public class CommandProcessor implements StartupProcess {
     private final ServerSocket server;
+    private RequestProcessor requestProcessor;
 
     ConcurrentHashMap<String, String> db = new ConcurrentHashMap<>();
-
-    private final RequestProcessor requestProcessor;
 
     public CommandProcessor(final ServerSocket serverSocket,
                             final RequestProcessor requestProcessor) {
         this.server = serverSocket;
+        this.requestProcessor = requestProcessor;
+    }
+
+    public void setRequestProcessor(RequestProcessor requestProcessor) {
         this.requestProcessor = requestProcessor;
     }
 
@@ -56,7 +63,7 @@ public class CommandProcessor {
                             String value = db.get(key);
                             AtomicInteger quorumCount = new AtomicInteger(1);
 
-                            for(int port: NodeRegistration.PORTS) {
+                            for(int port: Bootstrap.PORTS) {
 
                                 //Message every other node in the cluster
                                 if(port != server.getLocalPort()) {
@@ -69,7 +76,7 @@ public class CommandProcessor {
                                             .append(key)
                                             .toString();
 
-                                    NetworkManager.sendMessage(client, message);
+                                    NetworkingUtils.sendMessage(client, message);
 
                                     BufferedReader in1 = new BufferedReader(new InputStreamReader(client.getInputStream()));
                                     String resp = in1.readLine();
@@ -83,7 +90,7 @@ public class CommandProcessor {
 
                             System.out.println(quorumCount + " :Nodes agree on value:" + value + " for key: " + key);
 
-                            if(quorumCount.get() >= NodeRegistration.PORTS.size()/2) out.println(value);
+                            if(quorumCount.get() >= Bootstrap.PORTS.size()/2) out.println(value);
                             else out.println("CONSISTENCY ERROR!!");
 
                         } else if (inputLine.startsWith("PUT")) {
@@ -92,7 +99,7 @@ public class CommandProcessor {
 
                             db.put(key, value);
 
-                            for(int port: NodeRegistration.PORTS) {
+                            for(int port: Bootstrap.PORTS) {
                                 if(port != server.getLocalPort()) {
                                     System.out.println("Connecting to: " + port);
 
@@ -105,7 +112,7 @@ public class CommandProcessor {
                                             .append(value)
                                             .toString();
 
-                                    NetworkManager.sendMessage(client, message);
+                                    NetworkingUtils.sendMessage(client, message);
                                 }
                             }
 
@@ -140,5 +147,10 @@ public class CommandProcessor {
 
         Thread serverThread = new Thread(task);
         serverThread.start();
+    }
+
+    @Override
+    public void start() {
+        run();
     }
 }
