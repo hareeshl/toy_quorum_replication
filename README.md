@@ -1,4 +1,4 @@
-# Qurorum based consensus
+# Quorum based consensus
 
 NoSql databases are amazing! NoSql databases typically have a simple interface that allows storing data for a key and retrieving
 data for a key. API's look something like below, 
