@@ -1,33 +1,40 @@
-# Qurorum based replication in NoSql
+# Qurorum based consensus
 
-My idea for this project is to have a demo implementation to share the idea of Quorum based replication
-used in NoSql databases. 
-
-NoSql databases  are amazing! NoSql databases typically have a simple interface, 
+NoSql databases are amazing! NoSql databases typically have a simple interface that allows storing data for a key and retrieving
+data for a key. API's look something like below, 
 - PUT(Key, Value) 
 - GET(Key)
 
-They provide reliability guarantee, these databases need to replicate data of a partition (key range) 
-across different servers responsible for serving data of a partition. It looks something like this: <TODO: Image Url>.
+To provide reliability guarantee, these databases need to replicate data of a partition
+across different servers. A simple architecture looks looks something like https://github.com/hareeshl/toy_quorum_replication/blob/346bf139ca25f877ec17cdaea62f4e32c1e7ba9e/IMG_8058.jpg.
 
-As a consequence, such a system is eventually consistent i.e. Read immediately after a 
-Write cannot guarantee retrieval of latest version of data. 
+As a consequence, this system is eventually consistent i.e. Read immediately after a 
+Write cannot guarantee retrieval of latest version of data as the node that received the Read might not be the one
+that received the write and hence lagging behind. 
 
-What version of data should be returned for a key?
+This package is a naive way to try to improve the situation with eventual consistency (maybe). In this implementation, 
+after every PUT, each node publishes the data to other nodes in cluster. On a GET, the node receiving the request retrieves
+ data from all other nodes in the cluster, builds a majority consensus and return back a version. 
 
-This is the problem I am trying to solve. I am taking a simple approach of each node voting with their version of
-data they have and the node receiving the request making a decision based on the votes received.
+To facilitate this, I have implemented 2 internal api's 
+- FETCH: As part of GET operation, retrieve data from all nodes, build majority consensus, return value.
+- PUBLISH: As part of PUT operation, after updating internal state, publish to all nodes in the cluster.
 
 Other Notes:
 - There is no notion of a Master/Leader/Server or Slave/Client nodes. I am taking a peer to peer approach where
 any node in the group can receive a request for PUT or GET. Each node reaches a quorum and responds back to the
-client. 
+client.
+
+- Typically majority consensus is built by storing a version number along with data. I have just used naive equality
+in this implementation. A detailed discussion on this approach is available @ http://web.mit.edu/6.033/2005/wwwdocs/quorum_note.html
+o
+- Rebuilding state or adding new nodes to a cluster and building is not done but possible. 
 
 Implementation Detail
 
-- Server.java : This is the starting point. It starts off 2 Threads, one for receiving incoming requests and 
-other for sending requests to other nodes in the cluster.
+- Server.java: This is the starting point.
+- E2ETests.java: Behaves like a client. Each test sets up a cluster, does GET and PUT api's and validates correctness  
 
-Execution Instructions
+Instructions to run locally
 - javac *.java && java Server <portnumber>
 
